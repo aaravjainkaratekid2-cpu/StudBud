@@ -248,9 +248,9 @@ function Input({ t, value, onChange, placeholder, type = "text", style = {} }) {
 
 // ─── GRADE CALCULATOR ─────────────────────────────────────────────────────────
 function loadCourses() { try { return JSON.parse(localStorage.getItem("studyos_courses") || "[]"); } catch (e4) { return []; } }
-function saveCourses(c, uid) { try { localStorage.setItem("studyos_courses", JSON.stringify(c)); } catch (e5) {} }
+function saveCourses(c, uid) { try { localStorage.setItem("studyos_courses", JSON.stringify(c)); } catch (e5) {} if (uid) cloudSave(uid, "studyos_courses", c); }
 
-function GradeCalculator({ t }) {
+function GradeCalculator({ t, showToast }) {
   const [courses, setCourses] = useState(() => loadCourses());
   const [activeCourse, setActiveCourse] = useState(() => { const c = loadCourses(); return c.length ? c[0].id : null; });
   const [newCourse, setNewCourse] = useState("");
@@ -278,7 +278,7 @@ function GradeCalculator({ t }) {
     return weighted / totalWeight;
   }
 
-  function updateCourses(fn) { setCourses(prev => { const next = fn(prev); saveCourses(next); return next; }); }
+  function updateCourses(fn) { setCourses(prev => { const next = fn(prev); saveCourses(next); showToast(); return next; }); }
 
   function addCourse() {
     if (!newCourse.trim()) return;
@@ -296,8 +296,18 @@ function GradeCalculator({ t }) {
     setNewName(""); setNewScore(""); setNewMax("100"); setNewWeight("");
   }
 
+  const [editingAssignment, setEditingAssignment] = useState(null);
+  const [editAssForm, setEditAssForm] = useState({ name: "", score: "", max: "100", weight: "" });
+
   function removeAssignment(aid) {
     updateCourses(cs => cs.map(c => c.id === activeCourse ? { ...c, assignments: c.assignments.filter(a => a.id !== aid) } : c));
+  }
+  function startEditAssignment(a) { setEditingAssignment(a.id); setEditAssForm({ name: a.name, score: String(a.score), max: String(a.max), weight: String(a.weight) }); }
+  function saveEditAssignment() {
+    updateCourses(cs => cs.map(c => c.id === activeCourse ? {
+      ...c, assignments: c.assignments.map(a => a.id === editingAssignment ? { ...a, name: editAssForm.name, score: Number(editAssForm.score), max: Number(editAssForm.max), weight: Number(editAssForm.weight) } : a)
+    } : c));
+    setEditingAssignment(null);
   }
 
   function removeCourse(id) {
@@ -503,7 +513,24 @@ function GradeCalculator({ t }) {
                       , React.createElement('div', { style: { fontFamily: t.font, fontWeight: 700, color: pct >= 90 ? t.success : pct >= 70 ? t.warning : t.danger, fontSize: 18 }}, pct.toFixed(1), "%")
                       , React.createElement('div', { style: { color: t.textMuted, fontSize: 12, fontFamily: t.fontBody }}, gradeToLetter(pct))
                     )
-                    , React.createElement(Btn, { t: t, variant: "danger", small: true, onClick: () => removeAssignment(a.id)}, "✕")
+                    , React.createElement('div', { style: { display: "flex", gap: 4 }}
+                      , React.createElement(Btn, { t: t, variant: "ghost", small: true, onClick: () => startEditAssignment(a)}, "✏️")
+                      , React.createElement(Btn, { t: t, variant: "danger", small: true, onClick: () => removeAssignment(a.id)}, "✕")
+                    )
+                  )
+                  , editingAssignment === a.id && (
+                    React.createElement('div', { style: { marginTop: 10, borderTop: `1px solid ${t.border}`, paddingTop: 10 }}
+                      , React.createElement('div', { style: { display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "2fr 1fr 1fr 1fr", gap: 8, marginBottom: 8 }}
+                        , React.createElement(Input, { t: t, value: editAssForm.name, onChange: e => setEditAssForm(f => ({ ...f, name: e.target.value })), placeholder: "Assignment name" , style: isMobile ? { gridColumn: "1 / -1" } : {}} )
+                        , React.createElement(Input, { t: t, value: editAssForm.score, onChange: e => setEditAssForm(f => ({ ...f, score: e.target.value })), placeholder: "Score", type: "number"} )
+                        , React.createElement(Input, { t: t, value: editAssForm.max, onChange: e => setEditAssForm(f => ({ ...f, max: e.target.value })), placeholder: "Max pts" , type: "number"} )
+                        , React.createElement(Input, { t: t, value: editAssForm.weight, onChange: e => setEditAssForm(f => ({ ...f, weight: e.target.value })), placeholder: "Weight %" , type: "number", style: isMobile ? { gridColumn: "1 / -1" } : {}} )
+                      )
+                      , React.createElement('div', { style: { display: "flex", gap: 8 }}
+                        , React.createElement(Btn, { t: t, small: true, onClick: saveEditAssignment}, "Save")
+                        , React.createElement(Btn, { t: t, variant: "ghost", small: true, onClick: () => setEditingAssignment(null)}, "Cancel")
+                      )
+                    )
                   )
                 )
               );
@@ -727,14 +754,14 @@ function TimerPage({ t }) {
 
 // ─── TASKS ────────────────────────────────────────────────────────────────────
 function loadTasks() { try { return JSON.parse(localStorage.getItem("studyos_tasks") || "[]"); } catch (e6) { return []; } }
-function saveTasks(t, uid) { try { localStorage.setItem("studyos_tasks", JSON.stringify(t)); } catch (e7) {} }
+function saveTasks(t, uid) { try { localStorage.setItem("studyos_tasks", JSON.stringify(t)); } catch (e7) {} if (uid) cloudSave(uid, "studyos_tasks", t); }
 
-function Tasks({ t }) {
+function Tasks({ t, userId }) {
   const [tasks, setTasks] = useState(() => loadTasks());
   const w = useWindowWidth();
   const isMobile = w < 500;
 
-  function updateTasks(fn) { setTasks(prev => { const next = fn(prev); saveTasks(next); return next; }); }
+  function updateTasks(fn) { setTasks(prev => { const next = fn(prev); saveTasks(next); showToast(); return next; }); }
   const [filter, setFilter] = useState("all");
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ title: "", type: "homework", subject: "", color: SUBJECT_COLORS[0], dueDate: "", startDate: "", priority: "medium" });
@@ -746,8 +773,16 @@ function Tasks({ t }) {
     setShowAdd(false);
   }
 
+  const [editingTask, setEditingTask] = useState(null); // task id
+  const [editForm, setEditForm] = useState({});
+
   function toggleDone(id) { updateTasks(ts => ts.map(tk => tk.id === id ? { ...tk, done: !tk.done } : tk)); }
   function removeTask(id) { updateTasks(ts => ts.filter(tk => tk.id !== id)); }
+  function startEdit(task) { setEditingTask(task.id); setEditForm({ ...task }); }
+  function saveEdit() {
+    updateTasks(ts => ts.map(tk => tk.id === editingTask ? { ...editForm, id: tk.id, done: tk.done } : tk));
+    setEditingTask(null);
+  }
 
   const filtered = tasks.filter(t => {
     if (filter === "all") return true;
@@ -886,7 +921,41 @@ function Tasks({ t }) {
                     )
                   )
                 )
-                , React.createElement(Btn, { t: t, variant: "danger", small: true, onClick: () => removeTask(task.id)}, "✕")
+                , React.createElement('div', { style: { display: "flex", gap: 4 }}
+                  , React.createElement(Btn, { t: t, variant: "ghost", small: true, onClick: () => startEdit(task)}, "✏️")
+                  , React.createElement(Btn, { t: t, variant: "danger", small: true, onClick: () => removeTask(task.id)}, "✕")
+                )
+              )
+              , editingTask === task.id && (
+                React.createElement('div', { style: { marginTop: 12, borderTop: `1px solid ${t.border}`, paddingTop: 12, display: "flex", flexDirection: "column", gap: 8 }}
+                  , React.createElement(Input, { t: t, value: editForm.title, onChange: e => setEditForm(f => ({ ...f, title: e.target.value })), placeholder: "Task title..." } )
+                  , React.createElement('div', { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}
+                    , React.createElement('select', { value: editForm.type, onChange: e => setEditForm(f => ({ ...f, type: e.target.value })), style: { background: t.surface, border: `1px solid ${t.border}`, borderRadius: 9, color: t.text, fontFamily: t.fontBody, fontSize: 13, padding: "8px 10px", outline: "none" }}
+                      , React.createElement('option', { value: "homework"}, "📝 Homework" )
+                      , React.createElement('option', { value: "test"}, "📋 Test/Exam" )
+                    )
+                    , React.createElement('select', { value: editForm.priority, onChange: e => setEditForm(f => ({ ...f, priority: e.target.value })), style: { background: t.surface, border: `1px solid ${t.border}`, borderRadius: 9, color: t.text, fontFamily: t.fontBody, fontSize: 13, padding: "8px 10px", outline: "none" }}
+                      , React.createElement('option', { value: "high"}, "🔴 High" )
+                      , React.createElement('option', { value: "medium"}, "🟡 Medium" )
+                      , React.createElement('option', { value: "low"}, "🟢 Low" )
+                    )
+                  )
+                  , React.createElement(Input, { t: t, value: editForm.subject, onChange: e => setEditForm(f => ({ ...f, subject: e.target.value })), placeholder: "Subject..."} )
+                  , React.createElement('div', { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}
+                    , React.createElement('div', {}
+                      , React.createElement('div', { style: { color: t.textMuted, fontSize: 11, fontFamily: t.fontBody, marginBottom: 3 }}, "START DATE" )
+                      , React.createElement(Input, { t: t, type: "date", value: editForm.startDate, onChange: e => setEditForm(f => ({ ...f, startDate: e.target.value }))} )
+                    )
+                    , React.createElement('div', {}
+                      , React.createElement('div', { style: { color: t.textMuted, fontSize: 11, fontFamily: t.fontBody, marginBottom: 3 }}, "DUE DATE" )
+                      , React.createElement(Input, { t: t, type: "date", value: editForm.dueDate, onChange: e => setEditForm(f => ({ ...f, dueDate: e.target.value }))} )
+                    )
+                  )
+                  , React.createElement('div', { style: { display: "flex", gap: 8 }}
+                    , React.createElement(Btn, { t: t, small: true, onClick: saveEdit}, "Save")
+                    , React.createElement(Btn, { t: t, variant: "ghost", small: true, onClick: () => setEditingTask(null)}, "Cancel")
+                  )
+                )
               )
             )
           );
@@ -898,15 +967,15 @@ function Tasks({ t }) {
 
 // ─── FLASHCARDS ───────────────────────────────────────────────────────────────
 function loadDecks() { try { return JSON.parse(localStorage.getItem("studyos_decks") || "[]"); } catch (e8) { return []; } }
-function saveDecks(d, uid) { try { localStorage.setItem("studyos_decks", JSON.stringify(d)); } catch (e9) {} }
+function saveDecks(d, uid) { try { localStorage.setItem("studyos_decks", JSON.stringify(d)); } catch (e9) {} if (uid) cloudSave(uid, "studyos_decks", d); }
 
-function Flashcards({ t }) {
+function Flashcards({ t, userId }) {
   const [decks, setDecks] = useState(() => loadDecks());
   const [activeDeck, setActiveDeck] = useState(() => { const d = loadDecks(); return d.length ? d[0].id : null; });
   const w = useWindowWidth();
   const isMobile = w < 500;
 
-  function updateDecks(fn) { setDecks(prev => { const next = fn(prev); saveDecks(next); return next; }); }
+  function updateDecks(fn) { setDecks(prev => { const next = fn(prev); saveDecks(next); showToast(); return next; }); }
   const [quizMode, setQuizMode] = useState(false);
   const [cardIndex, setCardIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
@@ -941,8 +1010,18 @@ function Flashcards({ t }) {
     updateDecks(ds => ds.map(d => d.id === activeDeck ? { ...d, cards: [...d.cards, { id: Date.now(), q: newQ, a: newA }] } : d));
     setNewQ(""); setNewA(""); setShowAddCard(false);
   }
+  const [editingCard, setEditingCard] = useState(null);
+  const [editCardForm, setEditCardForm] = useState({ q: "", a: "" });
+
   function removeCard(cid) {
     updateDecks(ds => ds.map(d => d.id === activeDeck ? { ...d, cards: d.cards.filter(c => c.id !== cid) } : d));
+  }
+  function startEditCard(c) { setEditingCard(c.id); setEditCardForm({ q: c.q, a: c.a }); }
+  function saveEditCard() {
+    updateDecks(ds => ds.map(d => d.id === activeDeck ? {
+      ...d, cards: d.cards.map(c => c.id === editingCard ? { ...c, q: editCardForm.q, a: editCardForm.a } : c)
+    } : d));
+    setEditingCard(null);
   }
 
   const done = cardIndex >= (_optionalChain([deck, 'optionalAccess', _4 => _4.cards, 'access', _5 => _5.length]) || 0);
@@ -1008,11 +1087,33 @@ function Flashcards({ t }) {
           , React.createElement('div', { style: { display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10 }}
             , deck.cards.map(c => (
               React.createElement(Card, { t: t, key: c.id, style: { borderLeft: `4px solid ${deck.color}`, position: "relative" }}
-                , React.createElement('button', { onClick: () => removeCard(c.id), style: { position: "absolute", top: 10, right: 10, background: "none", border: "none", color: t.textMuted, cursor: "pointer", fontSize: 12, padding: 2 }}, "✕")
-                , React.createElement('div', { style: { color: t.textMuted, fontSize: 11, fontFamily: t.fontBody, fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}, "Q")
-                , React.createElement('div', { style: { fontFamily: t.fontBody, color: t.text, fontWeight: 700, fontSize: 14, marginBottom: 8, paddingRight: 16 }}, c.q)
-                , React.createElement('div', { style: { color: t.textMuted, fontSize: 11, fontFamily: t.fontBody, fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}, "A")
-                , React.createElement('div', { style: { fontFamily: t.fontBody, color: t.textMuted, fontSize: 14 }}, c.a)
+                , React.createElement('div', { style: { position: "absolute", top: 10, right: 10, display: "flex", gap: 4 }}
+                  , React.createElement('button', { onClick: () => startEditCard(c), style: { background: "none", border: "none", color: t.textMuted, cursor: "pointer", fontSize: 12, padding: 2 }}, "✏️")
+                  , React.createElement('button', { onClick: () => removeCard(c.id), style: { background: "none", border: "none", color: t.textMuted, cursor: "pointer", fontSize: 12, padding: 2 }}, "✕")
+                )
+                , editingCard === c.id ? (
+                  React.createElement('div', { style: { display: "flex", flexDirection: "column", gap: 8, paddingRight: 40 }}
+                    , React.createElement('div', {}
+                      , React.createElement('div', { style: { color: t.textMuted, fontSize: 11, fontFamily: t.fontBody, fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}, "Q")
+                      , React.createElement(Input, { t: t, value: editCardForm.q, onChange: e => setEditCardForm(f => ({ ...f, q: e.target.value })), placeholder: "Question..."} )
+                    )
+                    , React.createElement('div', {}
+                      , React.createElement('div', { style: { color: t.textMuted, fontSize: 11, fontFamily: t.fontBody, fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}, "A")
+                      , React.createElement(Input, { t: t, value: editCardForm.a, onChange: e => setEditCardForm(f => ({ ...f, a: e.target.value })), placeholder: "Answer..."} )
+                    )
+                    , React.createElement('div', { style: { display: "flex", gap: 6 }}
+                      , React.createElement(Btn, { t: t, small: true, onClick: saveEditCard}, "Save")
+                      , React.createElement(Btn, { t: t, variant: "ghost", small: true, onClick: () => setEditingCard(null)}, "Cancel")
+                    )
+                  )
+                ) : (
+                  React.createElement('div', { style: { paddingRight: 40 }}
+                    , React.createElement('div', { style: { color: t.textMuted, fontSize: 11, fontFamily: t.fontBody, fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}, "Q")
+                    , React.createElement('div', { style: { fontFamily: t.fontBody, color: t.text, fontWeight: 700, fontSize: 14, marginBottom: 8 }}, c.q)
+                    , React.createElement('div', { style: { color: t.textMuted, fontSize: 11, fontFamily: t.fontBody, fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}, "A")
+                    , React.createElement('div', { style: { fontFamily: t.fontBody, color: t.textMuted, fontSize: 14 }}, c.a)
+                  )
+                )
               )
             ))
           )
@@ -1089,7 +1190,7 @@ function getWeekKeys() {
   return keys;
 }
 function loadStudyData() { try { return JSON.parse(localStorage.getItem("studyos_data") || "{}"); } catch (e10) { return {}; } }
-function saveStudyData(data, uid) { try { localStorage.setItem("studyos_data", JSON.stringify(data)); } catch (e11) {} }
+function saveStudyData(data, uid) { try { localStorage.setItem("studyos_data", JSON.stringify(data)); } catch (e11) {} if (uid) cloudSave(uid, "studyos_data", data); }
 function logMinutes(mins) { const data = loadStudyData(); const key = getTodayKey(); data[key] = (data[key] || 0) + mins; saveStudyData(data); return data; }
 function calcStreak(data) {
   let streak = 0; const today = new Date(); today.setHours(0,0,0,0);
@@ -1099,7 +1200,7 @@ function calcStreak(data) {
 }
 
 // ─── STATS ────────────────────────────────────────────────────────────────────
-function Stats({ t, onLogMinutes }) {
+function Stats({ t, onLogMinutes, userId }) {
   const [data, setData] = useState(() => loadStudyData());
   const w = useWindowWidth();
   const isMobile = w < 400;
@@ -1380,6 +1481,8 @@ function StartScreen({ onEnter }) {
 function App() {
   const [user, setUser] = useState(null);
   const [showHome, setShowHome] = useState(false);
+  const [toast, setToast] = useState(false);
+  function showToast() { setToast(true); setTimeout(() => setToast(false), 2000); }
   const [authLoading, setAuthLoading] = useState(true);
 
   // ── Restore user from localStorage ──
@@ -1411,8 +1514,16 @@ function App() {
     React.createElement('div', { style: { minHeight: "100vh", background: t.bg, fontFamily: t.fontBody, transition: "background 0.3s, color 0.3s", overflowY: "auto" }}
       /* Header */
       , React.createElement('div', { style: { background: t.navBg, borderBottom: `1px solid ${t.border}`, padding: "12px 16px", position: "sticky", top: 0, zIndex: 100, boxShadow: t.shadow }}
+        , React.createElement('div', { style: {
+            position: "fixed", top: 20, left: "50%", transform: toast ? "translateX(-50%) translateY(0)" : "translateX(-50%) translateY(-80px)",
+            background: "#3B82F6", color: "#fff", padding: "10px 22px", borderRadius: 30,
+            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 14,
+            boxShadow: "0 4px 20px #3B82F644", zIndex: 9999,
+            transition: "transform 0.35s cubic-bezier(0.34,1.56,0.64,1)",
+            pointerEvents: "none",
+          }}, "✓ Data saved")
         , React.createElement('div', { style: { maxWidth: 680, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}
-          , React.createElement('div', { onClick: () => setShowHome(true), style: { fontFamily: t.font, fontSize: 20, fontWeight: 700, color: t.accent, letterSpacing: -0.5, cursor: "pointer" }}, "StudBud "
+          , React.createElement('div', { onClick: () => { showToast(); setTimeout(() => setShowHome(true), 600); }, style: { fontFamily: t.font, fontSize: 20, fontWeight: 700, color: t.accent, letterSpacing: -0.5, cursor: 'pointer' }}, "StudBud "
              , user && React.createElement('span', { style: { fontFamily: t.fontBody, fontSize: 13, fontWeight: 400, color: t.textMuted }}, "· " , user.name)
           )
           /* Theme switcher + sign out */
@@ -1431,10 +1542,10 @@ function App() {
 
       /* Content */
       , React.createElement('div', { style: { maxWidth: 680, margin: "0 auto", padding: "20px 16px 100px" }}
-        , tab === "grades" && React.createElement(GradeCalculator, { t: t} )
+        , tab === "grades" && React.createElement(GradeCalculator, { t: t, showToast: showToast} )
         , tab === "timer" && React.createElement(TimerPage, { t: t} )
-        , tab === "tasks" && React.createElement(Tasks, { t: t} )
-        , tab === "flash" && React.createElement(Flashcards, { t: t} )
+        , tab === "tasks" && React.createElement(Tasks, { t: t, showToast: showToast} )
+        , tab === "flash" && React.createElement(Flashcards, { t: t, showToast: showToast} )
         , tab === "stats" && React.createElement(Stats, { t: t, onLogMinutes: logMinutes} )
       )
 
