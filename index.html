@@ -260,7 +260,9 @@ function GradeCalculator({ t, showToast }) {
   const [newWeight, setNewWeight] = useState("");
   const [colorPickerOpen, setColorPickerOpen] = useState(null); // course id
   const [dragOver, setDragOver] = useState(null);
-  const [confirmDelete, setConfirmDelete] = useState(null); // course id
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [renamingCourse, setRenamingCourse] = useState(null);
+  const [renameCourseval, setRenameCourseval] = useState(""); // course id
   const dragItem = useRef(null);
 
   const course = courses.find(c => c.id === activeCourse);
@@ -317,6 +319,11 @@ function GradeCalculator({ t, showToast }) {
   function setCourseColor(id, color) {
     updateCourses(cs => cs.map(c => c.id === id ? { ...c, color } : c));
     setColorPickerOpen(null);
+  }
+  function saveCourseRename() {
+    if (!renameCourseval.trim()) { setRenamingCourse(null); return; }
+    updateCourses(cs => cs.map(c => c.id === renamingCourse ? { ...c, name: renameCourseval.trim() } : c));
+    setRenamingCourse(null);
   }
 
   // Drag to reorder
@@ -382,7 +389,17 @@ function GradeCalculator({ t, showToast }) {
                 borderRadius: "10px 0 0 10px", padding: "7px 12px", cursor: "pointer",
                 fontFamily: t.fontBody, fontWeight: 700, fontSize: 13, transition: "all 0.2s", borderRight: "none",
               }}
-                , c.name, " " , g !== null ? `· ${gradeToLetter(g)}` : ""
+                , renamingCourse === c.id
+                ? React.createElement('input', {
+                    autoFocus: true,
+                    value: renameCourseval,
+                    onChange: e => setRenameCourseval(e.target.value),
+                    onBlur: saveCourseRename,
+                    onKeyDown: e => { if (e.key === "Enter") saveCourseRename(); if (e.key === "Escape") setRenamingCourse(null); },
+                    onClick: e => e.stopPropagation(),
+                    style: { background: "transparent", border: "none", outline: "none", color: "inherit", fontFamily: "inherit", fontWeight: "inherit", fontSize: "inherit", width: 90 }
+                  })
+                : React.createElement('span', { onDoubleClick: e => { e.stopPropagation(); setRenamingCourse(c.id); setRenameCourseval(c.name); } }, c.name, " " , g !== null ? `· ${gradeToLetter(g)}` : "")
               )
 
               /* Color picker trigger */
@@ -981,6 +998,8 @@ function Flashcards({ t, userId }) {
   const [flipped, setFlipped] = useState(false);
   const [score, setScore] = useState({ know: 0, dontKnow: 0 });
   const [newDeckName, setNewDeckName] = useState("");
+  const [renamingDeck, setRenamingDeck] = useState(null);
+  const [renameVal, setRenameVal] = useState("");
   const [newQ, setNewQ] = useState("");
   const [newA, setNewA] = useState("");
   const [showAddCard, setShowAddCard] = useState(false);
@@ -1000,6 +1019,11 @@ function Flashcards({ t, userId }) {
     const id = Date.now();
     updateDecks(d => [...d, { id, name: newDeckName.trim(), color: SUBJECT_COLORS[d.length % SUBJECT_COLORS.length], cards: [] }]);
     setActiveDeck(id); setNewDeckName("");
+  }
+  function saveDeckRename() {
+    if (!renameVal.trim()) { setRenamingDeck(null); return; }
+    updateDecks(ds => ds.map(d => d.id === renamingDeck ? { ...d, name: renameVal.trim() } : d));
+    setRenamingDeck(null);
   }
   function removeDeck(id) {
     updateDecks(ds => { const next = ds.filter(d => d.id !== id); if (activeDeck === id) setActiveDeck(next.length ? next[0].id : null); return next; });
@@ -1040,7 +1064,18 @@ function Flashcards({ t, userId }) {
               border: `2px solid ${activeDeck === d.id ? d.color : t.border}`,
               borderRadius: "10px 0 0 10px", padding: "7px 12px", cursor: "pointer",
               fontFamily: t.fontBody, fontWeight: 700, fontSize: 13, transition: "all 0.2s", borderRight: "none",
-            }}, d.name, " (" , d.cards.length, ")")
+            }}, renamingDeck === d.id
+                ? React.createElement('input', {
+                    autoFocus: true,
+                    value: renameVal,
+                    onChange: e => setRenameVal(e.target.value),
+                    onBlur: saveDeckRename,
+                    onKeyDown: e => { if (e.key === "Enter") saveDeckRename(); if (e.key === "Escape") setRenamingDeck(null); },
+                    onClick: e => e.stopPropagation(),
+                    style: { background: "transparent", border: "none", outline: "none", color: "inherit", fontFamily: "inherit", fontWeight: "inherit", fontSize: "inherit", width: 80 }
+                  })
+                : React.createElement('span', { onDoubleClick: e => { e.stopPropagation(); setRenamingDeck(d.id); setRenameVal(d.name); } }, d.name, " (" , d.cards.length, ")")
+              )
             , React.createElement('button', { onClick: () => removeDeck(d.id), style: {
               background: activeDeck === d.id ? d.color + "cc" : t.surfaceAlt,
               color: activeDeck === d.id ? "#fff" : t.textMuted,
